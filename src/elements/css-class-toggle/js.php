@@ -1,1 +1,0 @@
-$(".css-class-toggler").cssClassToggle();

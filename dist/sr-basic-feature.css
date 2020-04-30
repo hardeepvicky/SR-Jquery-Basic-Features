@@ -1,0 +1,33 @@
+/*
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+*/
+/* 
+    Created on : Apr 30, 2020, 11:24:56 PM
+    Author     : Hardeep
+*/
+
+.hidden
+{
+    display: none;
+}
+
+.error-message
+{
+    color : red;
+    display: block;
+}
+
+.sr-paragraph-more-text-opener,
+.sr-paragraph-less-text-opener
+{
+    color : #0000ff;
+    cursor: pointer;
+}
+
+.help-block
+{
+    display: block;
+    color : #AAA;
+}

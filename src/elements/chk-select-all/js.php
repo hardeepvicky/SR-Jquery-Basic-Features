@@ -1,0 +1,1 @@
+$(".parent-checkbox-input").chkSelectAll();

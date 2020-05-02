@@ -1,5 +1,10 @@
 'use strict';
 
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.replace(new RegExp(search, 'g'), replacement);
+};
+
 jQuery.fn.extend({
     sentance: function ()
     {
@@ -80,8 +85,8 @@ jQuery.fn.extend({
         var feature = "sr-chkselect";
         
         var events = {
-            childCheck: feature + ":childcheck",
-            parentCheck: feature + ":parentcheck",
+            childCheck: feature + ".childcheck",
+            parentCheck: feature + ".parentcheck",
         };
         
         return this.each(function ()
@@ -143,7 +148,7 @@ jQuery.fn.extend({
         var feature = "sr-css-class-toggle";
         
         var events = {
-            toggleClass : feature + ":toggle",
+            toggleClass : feature + ".toggle",
         };
         
         return this.each(function ()
@@ -244,7 +249,7 @@ jQuery.fn.extend({
         var feature = "sr-copy-text";
         
         var events = {
-            copy : feature + ":copy",
+            copy : feature + ".copy",
         };
         
         return this.each(function ()
@@ -302,7 +307,7 @@ jQuery.fn.extend({
         var feature = "sr-ajax-load";
         
         var events = {
-            load : feature + ":load",
+            get : feature + ".get",
         };
         
         return this.each(function ()
@@ -333,7 +338,7 @@ jQuery.fn.extend({
             
             if ($(this).applyOnce(feature))
             {
-                $(this).on(events.load, function ()
+                $(this).on(events.get, function ()
                 {
                     if (load_once)
                     {
@@ -366,7 +371,7 @@ jQuery.fn.extend({
 
                 if (auto_load)
                 {
-                    $(this).trigger(events.load);
+                    $(this).trigger(events.get);
                 }
             }
         });
@@ -376,7 +381,7 @@ jQuery.fn.extend({
         var feature = "sr-ajax-json";
         
         var events = {
-            get : feature + ":get",
+            get : feature + ".get",
         };
         
         return this.each(function ()
@@ -433,8 +438,8 @@ jQuery.fn.extend({
         var feature = "sr-paragraph";
         
         var events = {
-            moreText : feature + ":moreText",
-            lessText : feature + ":lessText",
+            moreText : feature + ".moreText",
+            lessText : feature + ".lessText",
         };
         
         return this.each(function ()
@@ -496,7 +501,7 @@ jQuery.fn.extend({
         var feature = "sr-invalid-char";
         
         var events = {
-            validate : feature + ":validate",
+            validate : feature + ".validate",
         };
         
         if (typeof invalid_chars != "array")
@@ -629,6 +634,215 @@ jQuery.fn.extend({
                     }
                 });
             }
+        });
+    },
+    srTableTemplate : function(opt)
+    {
+        var feature = "sr-table-template";
+        
+        var events = {
+            addRow : feature + ".addRow",
+            delRow : feature + ".delRow",
+            upRow : feature + ".upRow",
+            downRow : feature + ".downRow",
+            refresh : feature + ".refresh",
+            getPlaceholder : feature + ".getPlaceholder",
+        };
+        
+        var methods = {
+            
+        };
+        
+        var selector = {
+            row : "> tbody > tr",
+            templateRow : "." + feature + "-row",
+            add : "." + feature + "-add",
+            delete : "." + feature + "-delete",
+            moveUp : "." + feature + "-move-up",
+            moveDown : "." + feature + "-move-down",
+        };
+        
+        var dataKeys = {
+            rowId : feature + "-row-id"
+        };
+        
+        var placeholder = {
+            id : "sr-counter",
+            counter : "sr-counter",
+        };
+        
+        var settings = $.extend({
+            brace_type : "{{",
+            beforeRowAdd : function() { return true},
+            beforeRowDel : function() { return true},
+            afterRowAdd : function() { return true},
+            afterRowDel : function() { return true},
+        }, opt);
+        
+
+        this.each(function () 
+        {
+            var _table = $(this);
+
+            var minimum_row = _table.data(feature + "-min-row");
+            if (jQuery.type(minimum_row) == "undefined")
+            {
+                minimum_row = 0;
+            }
+            
+            _table.bind(events.refresh, function ()
+            {
+                _table.find(selector.delete).show();
+                
+                _table.find(selector.row).not(selector.templateRow).each(function (a, tr)
+                {
+                    if (a <= minimum_row)
+                    {
+                        //find in first level only
+                        $(tr).children(selector.delete).hide();
+                    }
+                });
+            });
+            
+            methods.getPlaceholder = function (key)
+            {
+                var holder = "{{" + key +"}}";
+                
+                if (settings.brace_type == "{")
+                {
+                    holder = "{" + key + "}";
+                }
+                else if (settings.brace_type == "[")
+                {
+                    holder = "[" + key + "]";
+                }
+                else if (settings.brace_type == "[[")
+                {
+                    holder = "[[" + key + "]]";
+                }
+                else if (settings.brace_type == "[{")
+                {
+                    holder = "[{" + key + "}]";
+                }
+                else if (settings.brace_type == "{[")
+                {
+                    holder = "{[" + key + "]}";
+                }
+                return holder;
+            };
+            
+            _table.on(events.addRow, function()
+            {
+                var last_id = _table.find(selector.row).last().data(dataKeys.rowId);
+                
+                if (typeof last_id == "undefined")
+                {
+                    last_id = 0;
+                }
+                else
+                {
+                    last_id = parseInt(last_id);
+                }
+                last_id += 1;
+                
+                var result = settings.beforeRowAdd(_table, last_id);
+
+                if (!result)
+                {
+                    return false;
+                }
+                
+                var template_row = _table.children("tbody").children("tr" + selector.templateRow).html();
+                
+                var id_holder = methods.getPlaceholder(placeholder.id);
+                var counter_holder = methods.getPlaceholder(placeholder.counter);
+                
+                var len = _table.find(selector.row).length - 1;
+                
+                var tr_html = template_row.replaceAll(id_holder, last_id);
+                tr_html = tr_html.replaceAll(counter_holder, len);
+                tr_html= "<tr>" + tr_html + "</tr>";
+                _table.append(tr_html);
+                
+                var _tr = _table.find(selector.row).last();
+                _tr.data(dataKeys.rowId, last_id);
+                
+                settings.afterRowAdd(_table, last_id, _tr);
+            });
+            
+            _table.on(events.delRow, function(e, opt)
+            {
+                var _tr = opt.tr;
+                var last_id = _tr.data(dataKeys.rowId);
+                
+                var result = settings.beforeRowDel(_table, last_id, _tr);
+
+                if (!result)
+                {
+                    return false;
+                }
+                
+                _tr.remove();
+                
+                settings.afterRowDel(_table, last_id);
+            });
+            
+            _table.on(events.upRow, function(e, opt)
+            {
+                var _tr = opt.tr;
+                var index = _tr.index();
+                if (index > 0)
+                {
+                    index--;
+                    _tr.insertBefore(_table.find("> tbody > tr:eq(" + index + ")"));
+                }
+            });
+            
+            _table.on(events.downRow, function(e, opt)
+            {
+                var _tr = opt.tr;
+                var index = _tr.index();
+                if (index < _table.find("> tbody > tr").length - 1)
+                {
+                    index++;
+                    _tr.insertAfter(_table.find("> tbody > tr:eq(" + index + ")"));
+                }
+            });
+            
+            _table.on("click", selector.add, function()
+            {
+                _table.trigger(events.addRow);
+            });
+            
+            _table.on("click", selector.delete, function()
+            {
+                var _tr = $(this).closest("tr");
+                _table.trigger(events.delRow, { tr : _tr});
+            });
+            
+            _table.on("click", selector.moveUp, function()
+            {
+                var _tr = $(this).closest("tr");
+                _table.trigger(events.upRow, { tr : _tr});
+            });
+            
+            _table.on("click", selector.moveDown, function()
+            {
+                var _tr = $(this).closest("tr");
+                _table.trigger(events.downRow, { tr : _tr});
+            });
+            
+            var tr_count = _table.find(selector.row).length - 1;
+            
+            if (tr_count < minimum_row)
+            {
+                for (var i = tr_count; i < minimum_row; i++)
+                {
+                    _table.trigger(events.addRow);
+                }
+            }
+            
+            _table.trigger(events.refresh);
         });
     }
 });

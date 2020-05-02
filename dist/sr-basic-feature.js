@@ -1,10 +1,5 @@
 'use strict';
 
-String.prototype.replaceAll = function(search, replacement) {
-    var target = this;
-    return target.replace(new RegExp(search, 'g'), replacement);
-};
-
 jQuery.fn.extend({
     sentance: function ()
     {
@@ -28,57 +23,6 @@ jQuery.fn.extend({
                 }
             }
         });
-    },
-    tagName: function ()
-    {
-        return this.prop("tagName").toLowerCase();
-    },
-    applyOnce: function (feature)
-    {
-        if ($(this).hasClass(feature + "-applied"))
-        {
-            return false;
-        }
-
-        $(this).addClass(feature + "-applied");
-        return true;
-    },
-    hasEvent : function(find_e)
-    {
-        var events = $._data( $(this)[0], "events");        
-        for(var e in events)
-        {
-            if (find_e == e)
-            {
-                return true;
-            }
-        }
-        
-        return false;
-    },    
-    getBoolFromData : function(name, default_value)
-    {
-        var _is = $(this).data(name);
-            
-        if (_is)
-        {
-            _is = _is.toLowerCase().trim();
-
-            if (_is == "true" || _is == "1")
-            {
-                _is = true;
-            }
-            else
-            {
-                _is = false;
-            }
-        }
-        else
-        {
-            _is = default_value;
-        }
-        
-        return _is;
     },
     chkSelectAll: function ()
     {
@@ -844,5 +788,339 @@ jQuery.fn.extend({
             
             _table.trigger(events.refresh);
         });
+    },
+    cascade: function (opt)
+    {
+        var feature = "sr-cascade";
+        
+        var events = {
+            change : feature + ".change",
+            fill : feature + ".fill",
+            setValue : feature + ".setValue",
+        };
+        
+        var settings = $.extend({
+            placeholder : "{v}",
+            beforeGet : function(src, url)
+            {
+                return url;
+            },
+            afterGet : function(src, dest, response)
+            {
+                return response;
+            },
+            beforeValueSet : function(src, dest, val)
+            {
+                return val
+            },
+            afterValueSet : function(src, dest, val)
+            {}
+        }, opt);
+        
+        return this.each(function ()
+        {
+            var _this = $(this);
+            
+            var tag = _this.tagName();
+            
+            if (tag != "select")
+            {
+                console.log(feature + " is only implement on cascade");
+                console.groupEnd();
+                return;
+            }
+            
+            var target = _this.data(feature + "-target");
+            
+            if (!target)
+            {
+                console.error(feature + "-target is not set in html");
+                console.groupEnd();
+                return;
+            }
+            
+            if ($(target).length == 0)
+            {
+                console.error(feature + "-target : " + target + " not found");
+                console.groupEnd();
+                return;
+            }
+            
+            var url = _this.data(feature + "-url");
+                
+            if (!url)
+            {
+                console.error(feature + "-url is not set in html");
+                console.groupEnd();
+                return;
+            }
+            
+            if (_this.applyOnce(feature))
+            {
+                $(target).on(events.fill, function (e, args)                
+                {
+                    if (typeof args[$.cascade.fill.types.list] != "undefined")
+                    {
+                        $.cascade.fill.fromList($(this), args[$.cascade.fill.types.list]);
+                    }
+                    else if (typeof args[$.cascade.fill.types.groupList] != "undefined")
+                    {
+                        $.cascade.fill.fromGroupList($(this), args[$.cascade.fill.types.groupList]);
+                    }
+                    else if (typeof args[$.cascade.fill.types.keyPairList] != "undefined")
+                    {
+                        var key = typeof args["key"] ? args["key"] : null;
+                        var value = typeof args["value"] ? args["value"] : null;
+                        $.cascade.fill.fromKeyPairList($(this), args[$.cascade.fill.types.keyPairList], key, value);
+                    }
+                    else if (typeof args[$.cascade.fill.types.groupKeyPairlist] != "undefined")
+                    {
+                        var key = typeof args["key"] ? args["key"] : null;
+                        var value = typeof args["value"] ? args["value"] : null;
+                        $.cascade.fill.fromGroupKeyPairList($(this), args[$.cascade.fill.types.groupKeyPairlist], key, value);
+                    }
+                });
+                
+                $(target).on(events.setValue, function(e, args)
+                {
+                    var v = settings.beforeValueSet(_this, $(this), args.value);
+                    if (v)
+                    {
+                        $(target).val(v);
+                        settings.afterValueSet(_this, $(this), v);
+                    }
+                });
+                
+                _this.on(events.change, function(e, event_opt)
+                {
+                    var v = $(this).val();
+                    
+                    if (v)
+                    {
+                        var new_url = settings.beforeGet(_this, url);
+
+                        if (new_url === false)
+                        {
+                            return false;
+                        }
+                
+                        new_url = new_url.replaceAll(settings.placeholder, v);
+
+                        console.log(feature + " : get : " + new_url);
+                        $.get(new_url, function (response)
+                        {
+                            try
+                            {
+                                response = JSON.parse(response);
+                            } 
+                            catch (e)
+                            {
+                                $.showError(feature + " Error on get " + new_url, response);
+                                return;
+                            }
+
+                            var new_response = settings.afterGet(_this, $(target), response);
+
+                            if (new_response["status"] != "1")
+                            {
+                                $.showError(feature + " Error on get " + new_url, new_response["msg"]);
+                                return;
+                            }
+
+                            if (typeof new_response["data"] == "undefined")
+                            {
+                                $.showError(feature + " Error on get " + new_url, "data not found in response");;                            
+                            }
+
+                            $(target).trigger(events.fill, [new_response["data"]]);
+
+                            $(target).each(function()
+                            {
+                                if (typeof event_opt != "undefined" && typeof event_opt.pageLoad != "undefined" && event_opt.pageLoad)
+                                {
+                                    var value = $(this).data(feature + "-value");
+
+                                    if (value)
+                                    {
+                                        $(this).trigger(events.setValue, [{value : value}]);
+                                    }
+                                }
+                                
+                                $(this).trigger(events.change, event_opt);
+                            });
+                        })
+                        .fail(function (jqXHR , status, msg) 
+                        {
+                            $.showError(feature + " Error on get " + new_url, msg);
+                        });
+                    }
+                    else
+                    {
+                        $(target).trigger(events.fill, [
+                            {list : []}
+                        ]);
+                        
+                        $(target).each(function()
+                        {
+                            if ($(this).hasEvent(events.change))
+                            {
+                                $(this).trigger(events.change, event_opt);
+                            }
+                        });
+                    }
+                });
+                
+                _this.on("change", function(e, event_opt)
+                {
+                    console.group(feature);
+                    _this.trigger(events.change, event_opt);
+                    console.groupEnd();
+                });
+            }
+        });
+    },
+    srLoader : function()
+    {
+        var feature = "sr-loader";
+        
+        var events = {
+            show : feature + ".show",
+            hide : feature + ".hide",
+            onShown : feature + ".onShown",
+            onHidden : feature + ".onHidden",
+        };
+        
+        return this.each(function()
+        {
+            var tag = $(this).tagName();
+            
+            var cls = tag == "body" ?  "sr-loader-container-fixed" : "sr-loader-container";
+            
+            if ($(this).applyOnce(feature))
+            {
+                var html = "<div class='" + cls + " hidden'>";
+                    html += '<i class="sr-loader-icon fa fa-circle-o-notch fa-spin fa-fw"></i>';
+                html += "</div>";
+                
+                $(this).append(html);
+                
+                $(this).on(events.show, function()
+                {
+                    $(this).children("." + cls).removeClass("hidden");
+                    $(this).trigger(events.onShown);
+                });
+                
+                $(this).on(events.hide, function()
+                {
+                    $(this).children(".sr-loader-container").addClass("hidden");
+                    $(this).trigger(events.onHidden);
+                });
+            }
+        });
     }
 });
+
+$.cascade = {
+    
+};
+
+$.cascade.fill = {
+    defaultKey : "id",
+    defaultValue : "name",
+    types : {
+        list : "list",
+        groupList : "group_list",
+        keyPairList : "key_pair_list",
+        groupKeyPairlist : "group_key_pair_list",
+    },
+    initialCheck : function(obj)
+    {
+        var tag = obj.tagName();
+
+        if (tag != "select")
+        {
+            console.error("casecade fill : obj is not a select element");
+            return false;
+        }
+
+        var html = "";
+        if (obj.attr("multiple") != "multiple")
+        {
+            html += '<option value="">Please Select</option>';
+        }
+        
+        return html;
+    },
+    
+    fromList : function(obj, list)
+    {
+        var html = this.initialCheck(obj);
+
+        html += this.getHtmlList(list);
+        
+        $(obj).html(html);
+    },
+    getHtmlList : function(list)
+    {
+        var html = "";
+        for(var i in list)
+        {
+            html += '<option value="' + i + '">' + list[i] + '</option>';
+        }
+        return html;
+    },
+    fromGroupList : function(obj, group_list)
+    {
+        var html = this.initialCheck(obj);
+        for(var g in group_list)
+        {
+            html += '<optgroup label="' + g + '">';            
+            html += this.getHtmlList(group_list[g]);
+            html += '</optgroup>';
+        }
+        
+        $(obj).html(html);
+    },
+    
+    fromKeyPairList : function(obj, list, key, value)
+    {
+        var html = this.initialCheck(obj);
+
+        html += this.getHtmlKeyPairList(list, key, value);
+        
+        $(obj).html(html);
+    },
+    getHtmlKeyPairList : function(list, key, value)
+    {
+        if (!key)
+        {
+            key = this.defaultKey;
+        }
+        
+        if (!value)
+        {
+            value = this.defaultValue;
+        }
+        
+        var html = "";
+        for(var i in list)
+        {
+            var k = list[i][key];
+            var v = list[i][value];
+            html += '<option value="' + k + '">' + v + '</option>';
+        }
+        return html;
+    },
+    fromGroupKeyPairList : function(obj, group_list, key, value)
+    {
+        var html = this.initialCheck(obj);
+        for(var g in group_list)
+        {
+            html += '<optgroup label="' + g + '">';            
+            html += this.getHtmlKeyPairList(group_list[g], key, value);
+            html += '</optgroup>';
+        }
+        
+        $(obj).html(html);
+    },
+};
